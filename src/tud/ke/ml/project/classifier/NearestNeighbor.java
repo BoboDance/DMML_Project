@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,11 +37,13 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 
 	@Override
 	protected Map<Object, Double> getUnweightedVotes(List<Pair<List<Object>, Double>> subset) {
-//		for(Pair<List<Object>, Double> instance : subset) {
-//			
-//		}
+		Map<Object, Double> vote = new HashMap<Object, Double>();
 		
-		return null;
+		for(Pair<List<Object>, Double> instance : subset) {
+			vote.put(instance.getA(), vote.get(instance.getA()) == null ? instance.getB() : vote.get(instance.getA()) + instance.getB());
+		}
+		
+		return vote;
 	}
 
 	@Override
@@ -50,7 +53,12 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 
 	@Override
 	protected Object getWinner(Map<Object, Double> votes) {
-		throw new NotImplementedException();
+		votes = sortByValue(votes);
+		
+		Map.Entry<Object, Double> entry = votes.entrySet().iterator().next();
+		Object winner = entry.getKey();
+		
+		return winner;
 	}
 
 	@Override
