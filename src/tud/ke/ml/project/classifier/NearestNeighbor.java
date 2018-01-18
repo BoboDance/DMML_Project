@@ -40,7 +40,13 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 		Map<Object, Double> vote = new HashMap<Object, Double>();
 		
 		for(Pair<List<Object>, Double> instance : subset) {
-			vote.put(instance.getA(), vote.get(instance.getA()) == null ? instance.getB() : vote.get(instance.getA()) + instance.getB());
+			Double d = vote.putIfAbsent(instance.getA().get(getClassAttribute()), instance.getB());
+			
+			if(d != null) {
+				vote.put(instance.getA(), instance.getB() + d);
+			}
+			
+			//vote.put(instance.getA().get(getClassAttribute()), vote.get(instance.getA()) == null ? instance.getB() : vote.get(instance.getA()) + instance.getB());
 		}
 		
 		return vote;
@@ -48,7 +54,13 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 
 	@Override
 	protected Map<Object, Double> getWeightedVotes(List<Pair<List<Object>, Double>> subset) {
-		throw new NotImplementedException();
+		Map<Object, Double> vote = new HashMap<Object, Double>();
+		
+		for(Pair<List<Object>, Double> instance : subset) {
+			vote.put(instance.getA().get(getClassAttribute()), vote.get(instance.getA()) == null ? Math.pow(1 / instance.getB(), 2.0) : Math.pow(1 / (vote.get(instance.getA()) + instance.getB()), 2.0));
+		}
+		
+		return vote;
 	}
 
 	@Override
@@ -63,17 +75,33 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 
 	@Override
 	protected Object vote(List<Pair<List<Object>, Double>> subset) {
-		return getWinner(getUnweightedVotes(subset));
+		Object result = null;
+		
+		if(isInverseWeighting()) {
+			result = getWinner(getWeightedVotes(subset));
+		}else {
+			result = getWinner(getUnweightedVotes(subset));
+		}
+		
+		return result;
 	}
 
 	@Override
 	protected List<Pair<List<Object>, Double>> getNearest(List<Object> data) {
 		List<Pair<List<Object>, Double>> instances = new ArrayList<Pair<List<Object>, Double>>();
 		
-		for(List<Object> instance : this.model) {
-			Double d = determineManhattanDistance(instance, data);
-			Pair<List<Object>, Double> p = new Pair<List<Object>, Double>(instance, d);
-			instances.add(p);
+		if(getMetric() == 0) {
+			for(List<Object> instance : this.model) {
+				Double d = determineManhattanDistance(instance, data);
+				Pair<List<Object>, Double> p = new Pair<List<Object>, Double>(instance, d);
+				instances.add(p);
+			}
+		}else {
+			for(List<Object> instance : this.model) {
+				Double d = determineEuclideanDistance(instance, data);
+				Pair<List<Object>, Double> p = new Pair<List<Object>, Double>(instance, d);
+				instances.add(p);
+			}
 		}
 		
 		Collections.sort(instances, new Comparator<Pair<List<Object>, Double>>() {
@@ -85,6 +113,7 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 				return d1.compareTo(d2);
 			}
 		});
+		
 		
 		List<Pair<List<Object>, Double>> nearest = instances.subList(0, getkNearest());
 		
@@ -111,7 +140,20 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 
 	@Override
 	protected double determineEuclideanDistance(List<Object> instance1, List<Object> instance2) {
-		throw new NotImplementedException();
+		double distance = 0.0;
+		
+		for(int i=0; i < instance1.size(); i++) {
+			if(instance1.get(i) instanceof Double && instance2.get(i) instanceof Double) {
+				distance += Math.pow((Double) instance1.get(i) - (Double) instance2.get(i), 2);
+			}
+			else if(instance1.get(i) instanceof String && instance2.get(i) instanceof String) {
+				if(! instance1.get(i).equals(instance2.get(i))) {
+					distance += 1;
+				}
+			}
+		}
+		
+		return Math.sqrt(distance);
 	}
 
 	@Override
