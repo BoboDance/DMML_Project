@@ -14,14 +14,15 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 import tud.ke.ml.project.util.Pair;
 
 /**
- * This implementation assumes the class attribute is always available (but probably not set).
+ * This implementation assumes the class attribute is always available (but
+ * probably not set).
  * 
  */
 public class NearestNeighbor extends INearestNeighbor implements Serializable {
 	private static final long serialVersionUID = 1L;
 
 	private List<List<Object>> model;
-	
+
 	protected double[] scaling;
 	protected double[] translation;
 
@@ -38,121 +39,119 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 	@Override
 	protected Map<Object, Double> getUnweightedVotes(List<Pair<List<Object>, Double>> subset) {
 		Map<Object, Double> vote = new HashMap<Object, Double>();
-		
-		for(Pair<List<Object>, Double> instance : subset) {
+
+		for (Pair<List<Object>, Double> instance : subset) {
 			Double d = vote.putIfAbsent(instance.getA().get(getClassAttribute()), instance.getB());
-			
-			if(d != null) {
-				vote.put(instance.getA(), instance.getB() + d);
+
+			if (d != null) {
+				vote.put(instance.getA().get(getClassAttribute()), instance.getB() + d);
 			}
-			
-			//vote.put(instance.getA().get(getClassAttribute()), vote.get(instance.getA()) == null ? instance.getB() : vote.get(instance.getA()) + instance.getB());
 		}
-		
 		return vote;
 	}
 
 	@Override
 	protected Map<Object, Double> getWeightedVotes(List<Pair<List<Object>, Double>> subset) {
 		Map<Object, Double> vote = new HashMap<Object, Double>();
-		
-		for(Pair<List<Object>, Double> instance : subset) {
-			vote.put(instance.getA().get(getClassAttribute()), vote.get(instance.getA()) == null ? Math.pow(1 / instance.getB(), 2.0) : Math.pow(1 / (vote.get(instance.getA()) + instance.getB()), 2.0));
+
+		for (Pair<List<Object>, Double> instance : subset) {
+			Double d = vote.putIfAbsent(instance.getA().get(getClassAttribute()), Math.pow(1 / instance.getB(), 1));
+
+			if (d != null) {
+				vote.put(instance.getA().get(getClassAttribute()), Math.pow((1 / instance.getB()), 1) + d);
+			}
 		}
-		
+
 		return vote;
 	}
 
 	@Override
 	protected Object getWinner(Map<Object, Double> votes) {
 		votes = sortByValue(votes);
-		
+
 		Map.Entry<Object, Double> entry = votes.entrySet().iterator().next();
 		Object winner = entry.getKey();
-		
+
 		return winner;
 	}
 
 	@Override
 	protected Object vote(List<Pair<List<Object>, Double>> subset) {
 		Object result = null;
-		
-		if(isInverseWeighting()) {
+
+		if (isInverseWeighting()) {
 			result = getWinner(getWeightedVotes(subset));
-		}else {
+		} else {
 			result = getWinner(getUnweightedVotes(subset));
 		}
-		
+
 		return result;
 	}
 
 	@Override
 	protected List<Pair<List<Object>, Double>> getNearest(List<Object> data) {
 		List<Pair<List<Object>, Double>> instances = new ArrayList<Pair<List<Object>, Double>>();
-		
-		if(getMetric() == 0) {
-			for(List<Object> instance : this.model) {
+
+		if (getMetric() == 0) {
+			for (List<Object> instance : this.model) {
 				Double d = determineManhattanDistance(instance, data);
 				Pair<List<Object>, Double> p = new Pair<List<Object>, Double>(instance, d);
 				instances.add(p);
 			}
-		}else {
-			for(List<Object> instance : this.model) {
+		} else {
+			for (List<Object> instance : this.model) {
 				Double d = determineEuclideanDistance(instance, data);
 				Pair<List<Object>, Double> p = new Pair<List<Object>, Double>(instance, d);
 				instances.add(p);
 			}
 		}
-		
+
 		Collections.sort(instances, new Comparator<Pair<List<Object>, Double>>() {
 			@Override
 			public int compare(Pair<List<Object>, Double> o1, Pair<List<Object>, Double> o2) {
 				Double d1 = o1.getB();
 				Double d2 = o2.getB();
-				
+
 				return d1.compareTo(d2);
 			}
 		});
-		
-		
+
 		List<Pair<List<Object>, Double>> nearest = instances.subList(0, getkNearest());
-		
+
 		return nearest;
 	}
 
 	@Override
 	protected double determineManhattanDistance(List<Object> instance1, List<Object> instance2) {
 		double distance = 0.0;
-		
-		for(int i=0; i < instance1.size(); i++) {
-			if(instance1.get(i) instanceof Double && instance2.get(i) instanceof Double) {
-				distance += Math.abs((Double) instance1.get(i) - (Double) instance2.get(i));	
-			}
-			else if(instance1.get(i) instanceof String && instance2.get(i) instanceof String) {
-				if(! instance1.get(i).equals(instance2.get(i))) {
+
+		for (int i = 0; i < instance1.size() - 1; i++) {
+			if (instance1.get(i) instanceof Double && instance2.get(i) instanceof Double) {
+				distance += Math.abs((Double) instance1.get(i) - (Double) instance2.get(i));
+			} else if (instance1.get(i) instanceof String && instance2.get(i) instanceof String) {
+				if (!instance1.get(i).equals(instance2.get(i))) {
 					distance += 1;
 				}
 			}
 		}
-		
+
 		return distance;
 	}
 
 	@Override
 	protected double determineEuclideanDistance(List<Object> instance1, List<Object> instance2) {
 		double distance = 0.0;
-		
-		for(int i=0; i < instance1.size(); i++) {
-			if(instance1.get(i) instanceof Double && instance2.get(i) instanceof Double) {
+
+		for (int i = 0; i < instance1.size() - 1; i++) {
+			if (instance1.get(i) instanceof Double && instance2.get(i) instanceof Double) {
 				distance += Math.pow((Double) instance1.get(i) - (Double) instance2.get(i), 2);
-			}
-			else if(instance1.get(i) instanceof String && instance2.get(i) instanceof String) {
-				if(! instance1.get(i).equals(instance2.get(i))) {
+			} else if (instance1.get(i) instanceof String && instance2.get(i) instanceof String) {
+				if (!instance1.get(i).equals(instance2.get(i))) {
 					distance += 1;
 				}
 			}
 		}
-		
+
 		return Math.sqrt(distance);
 	}
 
@@ -160,18 +159,10 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 	protected double[][] normalizationScaling() {
 		throw new NotImplementedException();
 	}
-	
+
 	public static <K, V extends Comparable<? super V>> Map<K, V> sortByValue(Map<K, V> map) {
-	    return map.entrySet()
-	              .stream()
-	              .sorted(Map.Entry.comparingByValue())
-	              .collect(Collectors.toMap(
-		               Map.Entry::getKey, 
-		               Map.Entry::getValue, 
-		               (e1, e2) -> e1, 
-		               LinkedHashMap::new
-	              ));
+		return map.entrySet().stream().sorted(Map.Entry.comparingByValue())
+				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
 	}
-	
+
 }
- 
