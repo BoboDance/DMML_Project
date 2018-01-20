@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import tud.ke.ml.project.util.Pair;
@@ -41,10 +42,10 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 		Map<Object, Double> vote = new HashMap<Object, Double>();
 
 		for (Pair<List<Object>, Double> instance : subset) {
-			Double d = vote.putIfAbsent(instance.getA().get(getClassAttribute()), instance.getB());
+			Double d = vote.putIfAbsent(instance.getA().get(getClassAttribute()), 1.0);
 
 			if (d != null) {
-				vote.put(instance.getA().get(getClassAttribute()), instance.getB() + d);
+				vote.put(instance.getA().get(getClassAttribute()), 1.0 + d);
 			}
 		}
 		return vote;
@@ -55,10 +56,10 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 		Map<Object, Double> vote = new HashMap<Object, Double>();
 
 		for (Pair<List<Object>, Double> instance : subset) {
-			Double d = vote.putIfAbsent(instance.getA().get(getClassAttribute()), Math.pow(1 / instance.getB(), 1));
+			Double d = vote.putIfAbsent(instance.getA().get(getClassAttribute()), 1 / instance.getB());
 
 			if (d != null) {
-				vote.put(instance.getA().get(getClassAttribute()), Math.pow((1 / instance.getB()), 1) + d);
+				vote.put(instance.getA().get(getClassAttribute()), (1 / instance.getB()) + d);
 			}
 		}
 
@@ -67,12 +68,22 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 
 	@Override
 	protected Object getWinner(Map<Object, Double> votes) {
-		votes = sortByValue(votes);
+//		votes = sortByValue(votes);
+//
+//		Map.Entry<Object, Double> entry = votes.entrySet().iterator().next();
+//		Object winner = entry.getKey();
+		
+		Object win = null;
+		double max = Double.MIN_VALUE;
 
-		Map.Entry<Object, Double> entry = votes.entrySet().iterator().next();
-		Object winner = entry.getKey();
+		for (Entry<Object, Double> instance : votes.entrySet()) {
+			if (instance.getValue() > max) {
+				win = instance.getKey();
+				max = instance.getValue();
+			}
+		}
 
-		return winner;
+		return win;
 	}
 
 	@Override
@@ -110,6 +121,9 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 				} // Early escape
 
 				data.set(i, ((Double) elem - this.translation[i]) / (this.scaling[i]));
+//				http://grepcode.com/file/repo1.maven.org/maven2/nz.ac.waikato.cms.weka/weka-stable/3.6.8/weka/filters/unsupervised/attribute/Normalize.java#Normalize.convertInstance%28weka.core.Instance%29
+//					line 338
+			
 			}
 
 			for (List<Object> list : normalized) {
@@ -164,7 +178,7 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 				distance += Math.abs((Double) instance1.get(i) - (Double) instance2.get(i));
 			} else if (instance1.get(i) instanceof String && instance2.get(i) instanceof String) {
 				if (!instance1.get(i).equals(instance2.get(i))) {
-					distance += 1;
+					distance += 1.0;
 				}
 			}
 		}
@@ -181,7 +195,7 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 				distance += Math.pow((Double) instance1.get(i) - (Double) instance2.get(i), 2);
 			} else if (instance1.get(i) instanceof String && instance2.get(i) instanceof String) {
 				if (!instance1.get(i).equals(instance2.get(i))) {
-					distance += 1;
+					distance += 1.0;
 				}
 			}
 		}
@@ -194,17 +208,17 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 		scaling = new double[this.testinstance.size()];
 		translation = new double[this.testinstance.size()];
 
-		double[] min = new double[this.testinstance.size()];
+//		double[] min = new double[this.testinstance.size()];
 		double[] max = new double[this.testinstance.size()];
 
-		for (int i = 0; i < min.length; i++) {
-			min[i] = Double.MAX_VALUE;
+		for (int i = 0; i < translation.length; i++) {
+//			min[i] = Double.MAX_VALUE;
 			max[i] = Double.MIN_VALUE;
 			translation[i] = Double.MAX_VALUE;
 		}
 
 		List<List<Object>> merged = new ArrayList<>(this.model);
-		merged.add(testinstance);
+//		merged.add(testinstance);
 
 		for (List<Object> list : merged) {
 			for (int i = 0; i < list.size(); i++) {
@@ -212,7 +226,7 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 
 				if (elem instanceof String) {
 					translation[i] = 0;
-					min[i] = 0;
+//					min[i] = 0;
 					max[i] = 1;
 					continue;
 				}
@@ -223,9 +237,9 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 					translation[i] = d;
 				}
 
-				if (d < min[i]) {
-					min[i] = d;
-				}
+//				if (d < min[i]) {
+//					min[i] = d;
+//				}
 				if (d > max[i]) {
 					max[i] = d;
 				}
@@ -234,7 +248,9 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 
 		for (int i = 0; i < scaling.length; i++) {
 			//max-translation because we divide by the translated max, so we should save it.
-			scaling[i] = Math.abs(max[i] - min[i]);
+			scaling[i] = max[i] - translation[i];
+//			scaling[i] = 1;
+//			translation[i] = 0;
 		}
 
 		return new double[][] { scaling, translation };
@@ -290,9 +306,9 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 	}
 	*/
 
-	public static <K, V extends Comparable<? super V>> Map<K, V> sortByValue(Map<K, V> map) {
-		return map.entrySet().stream().sorted(Map.Entry.comparingByValue(Collections.reverseOrder()))
-				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
-	}
+//	public static <K, V extends Comparable<? super V>> Map<K, V> sortByValue(Map<K, V> map) {
+//		return map.entrySet().stream().sorted(Map.Entry.comparingByValue(Collections.reverseOrder()))
+//				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
+//	}
 
 }
