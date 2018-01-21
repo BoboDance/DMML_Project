@@ -132,7 +132,7 @@ public abstract class INearestNeighbor {
 	 * Determines the winning class base on the subset of nearest neighbors
 	 * 
 	 * @param subset Set of nearest neighbors with their distance
-	 * @return the winning class, ususally a String
+	 * @return the winning class, usually a String
 	 */
 	protected abstract Object vote(List<Pair<List<Object>, Double>> subset);
 

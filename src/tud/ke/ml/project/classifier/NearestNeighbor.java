@@ -5,11 +5,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.stream.Collectors;
 
 import tud.ke.ml.project.util.Pair;
 
@@ -22,7 +22,6 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 	private static final long serialVersionUID = 1L;
 
 	private List<List<Object>> model;
-	private List<Object> testinstance;
 
 	protected double[] scaling;
 	protected double[] translation;
@@ -68,11 +67,7 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 
 	@Override
 	protected Object getWinner(Map<Object, Double> votes) {
-//		votes = sortByValue(votes);
-//
-//		Map.Entry<Object, Double> entry = votes.entrySet().iterator().next();
-//		Object winner = entry.getKey();
-		
+
 		Object win = null;
 		double max = Double.MIN_VALUE;
 
@@ -101,57 +96,46 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 
 	@Override
 	protected List<Pair<List<Object>, Double>> getNearest(List<Object> data) {
-		List<Pair<List<Object>, Double>> instances = new ArrayList<Pair<List<Object>, Double>>();
-		
-		List<List<Object>> normalized = new ArrayList<>(this.model);
 
-		// Normalization
+		List<Pair<List<Object>, Double>> instances = new ArrayList<Pair<List<Object>, Double>>();
+		ListIterator<List<Object>> iter = this.model.listIterator();
+
 		if (isNormalizing()) {
-			this.testinstance = data;
 
 			double[][] norm = normalizationScaling();
+
 			this.scaling = norm[0];
 			this.translation = norm[1];
-
-			for (int i = 0; i < data.size(); i++) {
-				Object elem = data.get(i);
-
-				if (elem instanceof String) {
-					continue;
-				} // Early escape
-
-				data.set(i, ((Double) elem - this.translation[i]) / (this.scaling[i]));
-//				http://grepcode.com/file/repo1.maven.org/maven2/nz.ac.waikato.cms.weka/weka-stable/3.6.8/weka/filters/unsupervised/attribute/Normalize.java#Normalize.convertInstance%28weka.core.Instance%29
-//					line 338
-			
-			}
-
-			for (List<Object> list : normalized) {
-				for (int i = 0; i < list.size(); i++) {
-					Object elem = list.get(i);
-
-					if (elem instanceof String) {
-						continue; // Early escape
-					}
-
-					list.set(i, ((Double) elem - this.translation[i]) / (this.scaling[i]));
-				}
-			}
-			
 		}
 
-		if (getMetric() == 0) {
-			for (List<Object> instance : normalized) {
-				Double d = determineManhattanDistance(instance, data);
-				Pair<List<Object>, Double> p = new Pair<List<Object>, Double>(instance, d);
-				instances.add(p);
+		while (iter.hasNext()) {
+
+			List<Object> data_clone = (LinkedList<Object>) ((LinkedList<Object>) data).clone();
+			List<Object> model_clone = (LinkedList<Object>) ((LinkedList<Object>) iter.next()).clone();
+
+			if (isNormalizing()) {
+
+				for (int i = 0; i < data_clone.size(); i++) {
+					Object attr1 = data_clone.get(i);
+					Object attr2 = model_clone.get(i);
+
+					if (attr1 instanceof Double && attr2 instanceof Double) {
+						data_clone.set(i, ((Double) attr1 - translation[i]) / (scaling[i] + 0.000001));
+						model_clone.set(i, ((Double) attr2 - translation[i]) / (scaling[i] + 0.000001));
+					}
+				}
 			}
-		} else {
-			for (List<Object> instance : normalized) {
-				Double d = determineEuclideanDistance(instance, data);
-				Pair<List<Object>, Double> p = new Pair<List<Object>, Double>(instance, d);
-				instances.add(p);
+
+			Double distance;
+
+			if (getMetric() == 0) {
+				distance = determineManhattanDistance(data_clone, model_clone);
+
+			} else {
+				distance = determineEuclideanDistance(data_clone, model_clone);
 			}
+
+			instances.add(new Pair<List<Object>, Double>(model_clone, distance));
 		}
 
 		Collections.sort(instances, new Comparator<Pair<List<Object>, Double>>() {
@@ -173,7 +157,9 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 	protected double determineManhattanDistance(List<Object> instance1, List<Object> instance2) {
 		double distance = 0.0;
 
-		for (int i = 0; i < instance1.size() - 1; i++) {
+		for (int i = 0; i < instance1.size(); i++) {
+			if (i == this.getClassAttribute())
+				continue;
 			if (instance1.get(i) instanceof Double && instance2.get(i) instanceof Double) {
 				distance += Math.abs((Double) instance1.get(i) - (Double) instance2.get(i));
 			} else if (instance1.get(i) instanceof String && instance2.get(i) instanceof String) {
@@ -190,7 +176,9 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 	protected double determineEuclideanDistance(List<Object> instance1, List<Object> instance2) {
 		double distance = 0.0;
 
-		for (int i = 0; i < instance1.size() - 1; i++) {
+		for (int i = 0; i < instance1.size(); i++) {
+			if (i == this.getClassAttribute())
+				continue;
 			if (instance1.get(i) instanceof Double && instance2.get(i) instanceof Double) {
 				distance += Math.pow((Double) instance1.get(i) - (Double) instance2.get(i), 2);
 			} else if (instance1.get(i) instanceof String && instance2.get(i) instanceof String) {
@@ -205,41 +193,34 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 
 	@Override
 	protected double[][] normalizationScaling() {
-		scaling = new double[this.testinstance.size()];
-		translation = new double[this.testinstance.size()];
 
-//		double[] min = new double[this.testinstance.size()];
-		double[] max = new double[this.testinstance.size()];
+		scaling = new double[this.model.get(0).size()];
 
-		for (int i = 0; i < translation.length; i++) {
-//			min[i] = Double.MAX_VALUE;
+		double[] min = new double[this.model.get(0).size()];
+		double[] max = new double[this.model.get(0).size()];
+
+		for (int i = 0; i < min.length; i++) {
 			max[i] = Double.MIN_VALUE;
-			translation[i] = Double.MAX_VALUE;
+			min[i] = Double.MAX_VALUE;
 		}
 
 		List<List<Object>> merged = new ArrayList<>(this.model);
-//		merged.add(testinstance);
+		// merged.add(testinstance);
 
 		for (List<Object> list : merged) {
 			for (int i = 0; i < list.size(); i++) {
 				Object elem = list.get(i);
 
 				if (elem instanceof String) {
-					translation[i] = 0;
-//					min[i] = 0;
-					max[i] = 1;
 					continue;
 				}
 
 				// elem is a Double
 				Double d = (Double) elem;
-				if (d < translation[i]) {
-					translation[i] = d;
+				if (d < min[i]) {
+					min[i] = d;
 				}
 
-//				if (d < min[i]) {
-//					min[i] = d;
-//				}
 				if (d > max[i]) {
 					max[i] = d;
 				}
@@ -247,68 +228,13 @@ public class NearestNeighbor extends INearestNeighbor implements Serializable {
 		}
 
 		for (int i = 0; i < scaling.length; i++) {
-			//max-translation because we divide by the translated max, so we should save it.
-			scaling[i] = max[i] - translation[i];
-//			scaling[i] = 1;
-//			translation[i] = 0;
+			// max-translation because we divide by the translated max, so we should save
+			// it.
+			scaling[i] = max[i] - min[i];
+			// scaling[i] = 1;
+			// translation[i] = 0;
 		}
 
-		return new double[][] { scaling, translation };
+		return new double[][] { scaling, min };
 	}
-	
-	/*
-	@Override
-	protected double[][] normalizationScaling() {
-		double[][] factors = new double[model.size()][model.get(0).size()];
-		
-		if(isNormalizing()) {
-			double[] min = new double[model.get(0).size()];
-			double[] max = new double[model.get(0).size()];
-			
-			for(int i = 0; i < model.size(); i++) {
-				List<Object> instance = model.get(i);
-				
-				for(int j = 0; j < instance.size(); j++) {
-					Object attribute = instance.get(j);
-					
-					if(attribute instanceof Double) {
-						double val = ((Double) attribute).doubleValue();
-						
-						if(min[j] > val) {
-							min[j] = val;
-						}
-						
-						if(max[j] < val) {
-							max[j] = val;
-						}
-					}
-				}
-			}
-			
-			for(int i = 0; i < model.size(); i++) {
-				List<Object> instance = model.get(i);
-				
-				for(int j = 0; j < instance.size(); j++) {
-					Object attribute = instance.get(j);
-					
-					if(attribute instanceof String) {
-						factors[i][j] = 1.0;
-					}else {
-						factors[i][j] = (((Double) attribute).doubleValue() - min[j]) / (max[j] + min[j]);
-					}
-				}
-			}
-			
-			return factors;
-		}
-		
-		return factors;
-	}
-	*/
-
-//	public static <K, V extends Comparable<? super V>> Map<K, V> sortByValue(Map<K, V> map) {
-//		return map.entrySet().stream().sorted(Map.Entry.comparingByValue(Collections.reverseOrder()))
-//				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
-//	}
-
 }
